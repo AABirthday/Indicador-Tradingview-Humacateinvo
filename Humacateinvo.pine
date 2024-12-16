@@ -1,0 +1,474 @@
+//@version=5
+//InSilico Basic    >>> Hull Suite
+//AA_Birthday       >>> MA
+//ChartPrim         >>> Future Trend Channel
+//BigBeluga         >>> Índice De Volumen
+
+indicator('Humacateínvo', overlay=true)
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   Hull Suite  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+//INPUT
+src = input(close, title='Source')
+modeSwitch = input.string('Hma', title='Hull Variation', options=['Hma', 'Thma', 'Ehma'])
+length = input(55, title='Length(180-200 for floating S/R , 55 for swing entry)')
+lengthMult = input(1.0, title='Length multiplier (Used to view higher timeframes with straight band)')
+
+useHtf = input(false, title='Show Hull MA from X timeframe? (good for scalping)')
+htf = input.timeframe('240', title='Higher timeframe')
+
+switchColor = input(true, 'Color Hull according to trend?')
+candleCol = input(false, title='Color candles based on Hull\'s Trend?')
+visualSwitch = input(true, title='Show as a Band?')
+thicknesSwitch = input(1, title='Line Thickness')
+transpSwitch = input.int(40, title='Band Transparency', step=5)
+
+//FUNCTIONS
+//HMA
+HMA(_src, _length) =>
+    ta.wma(2 * ta.wma(_src, _length / 2) - ta.wma(_src, _length), math.round(math.sqrt(_length)))
+//EHMA    
+EHMA(_src, _length) =>
+    ta.ema(2 * ta.ema(_src, _length / 2) - ta.ema(_src, _length), math.round(math.sqrt(_length)))
+//THMA    
+THMA(_src, _length) =>
+    ta.wma(ta.wma(_src, _length / 3) * 3 - ta.wma(_src, _length / 2) - ta.wma(_src, _length), _length)
+
+//SWITCH
+Mode(modeSwitch, src, len) =>
+    modeSwitch == 'Hma' ? HMA(src, len) : modeSwitch == 'Ehma' ? EHMA(src, len) : modeSwitch == 'Thma' ? THMA(src, len / 2) : na
+
+//OUT
+_hull = Mode(modeSwitch, src, int(length * lengthMult))
+HULL = useHtf ? request.security(syminfo.ticker, htf, _hull) : _hull
+MHULL = HULL[0]
+SHULL = HULL[2]
+
+//COLOR
+hullColor = switchColor ? HULL > HULL[2] ? #00ff00 : #ff0000 : #ff9800
+
+//PLOT
+///< Frame
+Fi1 = plot(MHULL, title='MHULL', color=hullColor, linewidth=thicknesSwitch, transp=50)
+Fi2 = plot(visualSwitch ? SHULL : na, title='SHULL', color=hullColor, linewidth=thicknesSwitch, transp=50)
+alertcondition(ta.crossover(MHULL, SHULL), title='Hull trending up.', message='Hull trending up.')
+alertcondition(ta.crossover(SHULL, MHULL), title='Hull trending down.', message='Hull trending down.')
+///< Ending Filler
+fill(Fi1, Fi2, title='Band Filler', color=hullColor, transp=transpSwitch)
+///BARCOLOR
+barcolor(color=candleCol ? switchColor ? hullColor : na : na)
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   MA  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+int MA1 = input(defval=200, title='MA')
+m1 = ta.sma(close, MA1)
+plot(m1, color=color.new(color.white, 0))
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   Canal De Tendencia Futura  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// --------------------------------------------------------------------------------------------------------------------}
+// 𝙐𝙎𝙀𝙍 𝙄𝙉𝙋𝙐𝙏𝙎
+// --------------------------------------------------------------------------------------------------------------------{
+int   longitud = input.int(100, "Trend Length")
+float multi  = input.float(3, "Channel Width", step = 0.1)
+int   extend = input.int(50, "Index of future price")
+color color_up = input.color(#16d897, "Up", inline = "Colors")
+color color_dn = input.color(#da853f, "Dn", inline = "Colors")
+
+float atr    = ta.highest(ta.atr(200), 100)
+
+// UDT ------------------------------>>
+type channel 
+    line line_mid1 = na
+    line line_mid2 = na
+    line line_top1 = na
+    line line_top2 = na
+    line line_low1 = na
+    line line_low2 = na
+
+var c = channel.new(line(na), line(na), line(na), line(na), line(na), line(na))
+
+
+// --------------------------------------------------------------------------------------------------------------------}
+// 𝙄𝙉𝘿𝙄𝘾𝘼𝙏𝙊𝙍 𝘾𝘼𝙇𝘾𝙐𝙇𝘼𝙏𝙄𝙊𝙉𝙎
+// --------------------------------------------------------------------------------------------------------------------{
+future_price(x1,x2,y1,y2,index)=>
+    float slope = (y2-y1)/(x2-x1) 
+
+    float future_price = y1 + slope * (index - x1)
+
+    style = switch
+        y1 > y2 =>label.style_label_lower_left
+        =>label.style_label_upper_left
+
+    label.new(index, future_price, 
+                 text  = str.tostring(future_price, "Precio Futuro: \n #.#"),
+                 color = color.new(chart.fg_color, 80),
+                 textcolor = chart.fg_color, 
+                 style     = style)
+
+trend(longitud)=>
+    var trend = bool(na)
+    float sma = ta.sma(close, longitud)
+    float upper = sma + atr
+    float lower = sma - atr
+
+    bool signal_up = ta.crossover(close, upper)
+    bool signal_dn = ta.crossunder(close, lower)
+
+    if signal_up
+        trend := true
+    if signal_dn
+        trend := false
+
+    trend
+
+bool trend = trend(longitud)
+
+remove_lines(trend)=>
+    if trend and not trend[1]
+        c.line_mid2 := line(na)
+        c.line_top2 := line(na)
+        c.line_low2 := line(na)
+
+    if not trend and trend[1]
+        c.line_mid1 := line(na)
+        c.line_top1 := line(na)
+        c.line_low1 := line(na)
+
+color_lines(line_m, line_t, line_l, color, label)=>
+    var color_lines = color
+
+    if color == color_up ? line_m.get_y1() <= line_m.get_y2() : line_m.get_y1() >= line_m.get_y2()
+        color_lines := color
+        line_m.set_color(color_lines)
+        line_l.set_color(color_lines)
+        line_t.set_color(color_lines)
+
+        line_m.set_style(line.style_solid)
+        line_t.set_style(line.style_solid)
+        line_l.set_style(line.style_solid)
+        label.set_color(label, color_lines)  
+
+    if  color == color_up ? line_m.get_y1() >= line_m.get_y2() : line_m.get_y1() <= line_m.get_y2()
+        color_lines := chart.fg_color
+        line_m.set_color(color_lines)
+        line_t.set_color(color_lines)
+        line_l.set_color(color_lines)
+
+        line_m.set_style(line.style_dashed)
+        line_t.set_style(line.style_dashed)
+        line_l.set_style(line.style_dashed)
+        label.set_color(label, color.new(color_lines, 100))
+
+    label.set_size(label, size.tiny)
+
+    linefill.new(line_l, line_t, color.new(color_lines, 90))
+
+draw_channel(trend)=>
+    var label_up = label(na)
+    var label_dn = label(na)
+    var label_m = label(na)
+
+    series float src = hl2
+    series float low_src = src - atr * multi
+    series float high_src = src + atr * multi
+
+    // -> New Lines
+    if trend and not trend[1]
+        label_up := label.new(bar_index, low_src, style = label.style_diamond)
+        c.line_mid1 := line.new(bar_index, src, bar_index, src)
+        c.line_top1 := line.new(bar_index, high_src, bar_index, high_src)
+        c.line_low1 := line.new(bar_index, low_src, bar_index, low_src)
+
+        c.line_mid2.set_xy2(bar_index, src)
+        c.line_top2.set_xy2(bar_index, high_src)
+        c.line_low2.set_xy2(bar_index, low_src)
+
+    if not trend and trend[1]
+        label_dn := label.new(bar_index, high_src, style = label.style_diamond)
+        c.line_mid2 := line.new(bar_index, src, bar_index+2, src)
+        c.line_top2 := line.new(bar_index, high_src, bar_index, high_src)
+        c.line_low2 := line.new(bar_index, low_src, bar_index, low_src)
+
+        c.line_mid1.set_xy2(bar_index, src)
+        c.line_top1.set_xy2(bar_index, high_src)
+        c.line_low1.set_xy2(bar_index, low_src)
+
+    // Extend
+    if trend
+        label.delete(label_m)
+        c.line_mid2.set_extend(extend.none)
+        c.line_top2.set_extend(extend.none)     
+        c.line_low2.set_extend(extend.none)   
+
+        c.line_mid1.set_extend(extend.right)
+        c.line_top1.set_extend(extend.right)     
+        c.line_low1.set_extend(extend.right)   
+
+        c.line_mid1.set_xy2(bar_index, ta.sma(src, 20))
+        c.line_top1.set_xy2(bar_index, ta.sma(high_src, 20))
+        c.line_low1.set_xy2(bar_index, ta.sma(low_src, 20))
+
+        label_m := future_price(c.line_mid1.get_x1(), c.line_mid1.get_x2(), c.line_mid1.get_y1(), c.line_mid1.get_y2(), bar_index+extend)
+
+    
+
+    if not trend
+        label.delete(label_m)
+        c.line_mid1.set_extend(extend.none)
+        c.line_top1.set_extend(extend.none)     
+        c.line_low1.set_extend(extend.none)   
+
+        c.line_mid2.set_extend(extend.right)
+        c.line_top2.set_extend(extend.right)     
+        c.line_low2.set_extend(extend.right)   
+
+        c.line_mid2.set_xy2(bar_index, ta.sma(src, 20))
+        c.line_top2.set_xy2(bar_index, ta.sma(high_src, 20))
+        c.line_low2.set_xy2(bar_index, ta.sma(low_src, 20))
+
+        label_m := future_price(c.line_mid2.get_x1(), c.line_mid2.get_x2(), c.line_mid2.get_y1(), c.line_mid2.get_y2(), bar_index+extend)
+
+
+    color_lines(c.line_mid1, c.line_top1, c.line_low1, color_up, label_up)
+    color_lines(c.line_mid2, c.line_top2, c.line_low2, color_dn, label_dn)
+
+    remove_lines(trend)
+
+
+// --------------------------------------------------------------------------------------------------------------------}
+// 𝙑𝙄𝙎𝙐𝘼𝙇𝙄𝙕𝘼𝙏𝙄𝙊𝙉
+// --------------------------------------------------------------------------------------------------------------------{
+draw_channel(trend)
+// --------------------------------------------------------------------------------------------------------------------}
+
+
+
+
+
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   Índice De Volumen  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// ＩＮＰＵＴＳ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+// Input parameters for length, momentum, and source data
+int   vidya_length   = input.int(10, "VIDYA Length")       // Length of the VIDYA calculation
+int   vidya_momentum = input.int(20, "VIDYA Momentum")    // Momentum length for VIDYA
+float band_distance  = input.float(2, "Distance factor for upper/lower bands", step = 0.1)  // Distance factor for upper/lower bands
+// Define pivot parameters
+int pivot_left_bars  = 3                                             // Left side pivot bars
+int pivot_right_bars = pivot_left_bars                              // Right side pivot bars
+
+float source         = input.source(close, "Source")    // Source for VIDYA calculation
+
+// Define colors for up and down trends
+color up_trend_color   = input(#17dfad, "+", group = "Color", inline = "c")   // Color for uptrend
+color down_trend_color = input(#dd326b, "-", group = "Color", inline = "c")  // Color for downtrend
+bool  shadow           = input.bool(true, "Shadow", group = "Color", inline = "c")
+
+// Initialize variables for line, volume, and trend state
+var line pivot_line    = na      // Variable for storing line references
+var float volume_value = na     // Variable for storing volume data
+float smoothed_value   = na   // Smoothing variable for VIDYA trend levels
+var bool is_trend_up   = na  // Boolean variable for tracking trend direction
+
+// Initialize arrays for storing line and volume information
+var array<line> liquidity_lines_low  = array.new<line>(500)    // Array for storing lines for lows
+var array<line> liquidity_lines_high = array.new<line>(500)  // Array for storing lines for highs
+
+var float up_trend_volume   = na     // Volume accumulated during uptrend
+var float down_trend_volume = na  // Volume accumulated during downtrend
+// }
+
+
+// ＦＵＮＣＴＩＯＮＳ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+
+// Define VIDYA (Variable Index Dynamic Average) function
+vidya_calc(src, vidya_length, vidya_momentum) =>
+    float momentum         = ta.change(src)
+    float sum_pos_momentum = math.sum((momentum >= 0) ? momentum : 0.0, vidya_momentum)
+    float sum_neg_momentum = math.sum((momentum >= 0) ? 0.0 : -momentum, vidya_momentum)
+    float abs_cmo          = math.abs(100 * (sum_pos_momentum - sum_neg_momentum) / (sum_pos_momentum + sum_neg_momentum))
+    float alpha            = 2 / (vidya_length + 1)
+    var float vidya_value  = 0.0
+    vidya_value           := alpha * abs_cmo / 100 * src + (1 - alpha * abs_cmo / 100) * nz(vidya_value[1])
+
+    ta.sma(vidya_value, 15)
+
+// Method to extend lines and add labels for liquidity levels
+method extend_liquidity_lines(array<line> line_array, float price_level, bool is_cross, volume_val)=>
+    if line_array.size() > 0 and last_bar_index - bar_index < 5000
+        for i = 0 to line_array.size()-1 
+            if i < line_array.size()
+                line liquidity_line      = line_array.get(i)
+                float current_line_level = line.get_y2(liquidity_line)
+                bool price_cross         = is_cross 
+                                  ? price_level < current_line_level and price_level[1] >= current_line_level 
+                                  : price_level > current_line_level and price_level[1] <= current_line_level
+
+                bool is_short_line = bar_index - line.get_x1(liquidity_line) < 50
+
+                if price_cross and is_short_line
+                    line.set_x2(liquidity_line, bar_index)
+                    line_array.remove(i)
+
+                    // Add volume label to the liquidity zone
+                    label.new(bar_index-1, price_level[1], 
+                             str.tostring(volume_val, format.volume), 
+                             color      = color.rgb(0, 0, 0, 99), 
+                             style      = is_cross ? label.style_label_lower_left : label.style_label_upper_left,
+                             textcolor  = chart.fg_color, 
+                             size       = size.small)
+
+                    // Add a circle label to represent liquidity zone
+                    label.new(bar_index-1, price_level[1], 
+                             text       = "◉", 
+                             color      = #00000003, 
+                             textcolor  = is_cross ? down_trend_color : up_trend_color, 
+                             style      = label.style_label_center, 
+                             size       = size.normal)
+// }
+
+
+// ＣＡＬＣＵＬＡＴＩＯＮＳ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+// Calculate the Average True Range (ATR)
+float atr_value = ta.atr(200)  // ATR calculation with length of 200
+
+// Calculate the VIDYA (Variable Index Dynamic Average)
+vidya_value = vidya_calc(source, vidya_length, vidya_momentum)
+
+// Calculate upper and lower bands based on VIDYA and ATR
+float upper_band = vidya_value + atr_value * band_distance
+float lower_band = vidya_value - atr_value * band_distance
+
+// Detect trend direction using crossovers of source with bands
+if ta.crossover(source, upper_band)
+    is_trend_up := true 
+if ta.crossunder(source, lower_band)
+    is_trend_up := false 
+
+// Set trend-based smoothing variable
+if is_trend_up
+    smoothed_value := lower_band
+if not is_trend_up
+    smoothed_value := upper_band
+if ta.change(is_trend_up)
+    smoothed_value := na
+
+// Calculate pivot highs and lows for price action
+float pivot_high = ta.pivothigh(pivot_left_bars, pivot_right_bars)
+float pivot_low  = ta.pivotlow(close, pivot_left_bars, pivot_right_bars)
+
+// Create and store lines for pivot lows (support zones)
+if low[pivot_right_bars] > smoothed_value and pivot_low 
+    pivot_line := line.new(
+                           bar_index[pivot_right_bars], 
+                           low[pivot_right_bars], 
+                           bar_index[pivot_right_bars]+5, 
+                           low[pivot_right_bars], 
+                           color = color.new(up_trend_color, 50)
+                           )
+
+    liquidity_lines_low.push(pivot_line)
+    volume_value := math.sum(volume, pivot_right_bars + pivot_left_bars) / (pivot_right_bars + pivot_left_bars)
+
+// Create and store lines for pivot highs (resistance zones)
+if high[pivot_right_bars] < smoothed_value and pivot_high 
+    pivot_line := line.new(
+                           bar_index[pivot_right_bars], 
+                           high[pivot_right_bars], 
+                           bar_index[pivot_right_bars]+5, 
+                           high[pivot_right_bars],
+                           color = color.new(down_trend_color, 50)
+                           )
+
+    liquidity_lines_high.push(pivot_line)
+    volume_value := math.sum(-volume, pivot_right_bars + pivot_left_bars) / (pivot_right_bars + pivot_left_bars)
+
+// Extend lines to track price movements
+liquidity_lines_high.extend_liquidity_lines(smoothed_value, true, volume_value)
+liquidity_lines_low.extend_liquidity_lines(smoothed_value, false, volume_value)
+
+// Detect changes in the trend direction
+bool trend_cross_up   = not is_trend_up[1] and is_trend_up
+bool trend_cross_down = not is_trend_up and is_trend_up[1]
+
+// Reset volume counters when trend changes
+if ta.change(trend_cross_up) or ta.change(trend_cross_down)
+    up_trend_volume := 0
+    down_trend_volume := 0
+
+// Accumulate volume during trends
+if not(ta.change(trend_cross_up) or ta.change(trend_cross_down))
+    up_trend_volume      += (close > open ? volume : 0)
+    down_trend_volume    += (close < open ? volume : 0)
+
+// Calculate average volume
+float avg_volume_delta    = (up_trend_volume + down_trend_volume) / 2
+
+// Determine the color of the trend
+color trend_color = is_trend_up ? up_trend_color 
+                       : not is_trend_up ? down_trend_color
+                       : chart.fg_color
+
+// Calculate delta volume percentage
+string delta_volume = 
+                   str.tostring(((up_trend_volume - down_trend_volume) / avg_volume_delta) * 100, format.percent) == "NaN%" 
+                   ? "0%" 
+                   : str.tostring(((up_trend_volume - down_trend_volume) / avg_volume_delta) * 100, format.percent)
+
+// }
+
+
+// ＰＬＯＴ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+// Display labels for volume and trend statistics on the last bar
+if barstate.islast
+    label.delete(
+         label.new(bar_index, smoothed_value, 
+         "Compra: " + str.tostring(up_trend_volume, format.volume) 
+         + "\n Venta: " + str.tostring(down_trend_volume, format.volume) 
+         + "\nVolumen: " + delta_volume, 
+         color      = color.new(trend_color, 90),
+         style      = is_trend_up ? label.style_label_upper_left : label.style_label_lower_left, 
+         textcolor  = chart.fg_color
+         )[1])
+    
+    label.delete(label.new(bar_index, smoothed_value, 
+                 text       = "✪", 
+                 color      = #00000003,
+                 textcolor  = trend_color, 
+                 style      = label.style_label_center, 
+                 size       = size.large)[1])
+
+// Plot the VIDYA trend line
+p1 = plot(smoothed_value, color = trend_color, linewidth = 2, style = plot.style_linebr)
+p2 = plot(hl2, display = display.none)
+
+// Fill between the plot and the VIDYA line
+fill(p1, p2, smoothed_value, hl2, color.new(trend_color, shadow ? 80 : 100), na)
+
+// Plot trend change markers (up and down arrows)
+plotshape(
+         series     = trend_cross_up[1] ? smoothed_value[0] : na, 
+         title      = "Trend Up", 
+         style      = shape.labelup, 
+         location   = location.absolute, 
+         color      = color.new(up_trend_color, 50), 
+         text       = "ALCISTA", 
+         textcolor  = chart.fg_color
+         )
+
+plotshape(
+         series     = trend_cross_down[1] ? smoothed_value[0] : na, 
+         title      = "Trend Down", 
+         style      = shape.labeldown, 
+         location   = location.absolute, 
+         color      = color.new(down_trend_color, 50), 
+         text       = "BAJISTA", 
+         textcolor  = chart.fg_color
+         )
+// }
+
